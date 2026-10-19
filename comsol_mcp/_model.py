@@ -15,7 +15,7 @@ from comsol_mcp._state import (
     _json, _now_iso, _read_workflow_state, _write_workflow_state,
     _append_operation, _safe_model_label, _safe_model_path,
     _safe_model_tag, _resolved_model_file_path, _normcase_path,
-    _resolve_path, _resolve_output_path, OUTPUTS_DIR,
+    _resolve_path, _resolve_output_path, _sanitize_snapshot_label, OUTPUTS_DIR,
 )
 from comsol_mcp._connection import _require_client
 
@@ -164,11 +164,28 @@ def _loaded_model_records_locked() -> list[dict[str, str]]:
     return records
 
 
+def _backup_model_before_remove(model: Any, record: dict[str, str]) -> str:
+    """Save a copy of a loaded model into OUTPUTS_DIR/pruned before it is removed from the server."""
+    name = record["label"] or record["tag"] or "model"
+    if name.lower().endswith(".mph"):
+        name = name[:-4]
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    path = OUTPUTS_DIR / "pruned" / f"{_sanitize_snapshot_label(name)}_{stamp}.mph"
+    _save_model_copy(model, path)
+    return str(path)
+
+
 def _prune_loaded_models_locked(keep_model: Any) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """Remove every loaded model except keep_model, saving a copy of each first.
+
+    A model whose copy cannot be saved stays loaded. Returns (removed, remaining).
+    """
     client = _require_client()
     keep_tag = _safe_model_tag(keep_model)
     removed = []
     removed_tags = set()
+    backups: dict[str, str] = {}
+    not_backed_up: set[str] = set()
 
     for _ in range(3):
         extras = []
@@ -179,7 +196,7 @@ def _prune_loaded_models_locked(keep_model: Any) -> tuple[list[dict[str, str]], 
                 "label": _safe_model_label(model),
                 "file_path": _resolved_model_file_path(model),
             }
-            if tag == keep_tag:
+            if tag == keep_tag or tag in not_backed_up:
                 continue
             extras.append((model, record))
         if not extras:
@@ -188,6 +205,14 @@ def _prune_loaded_models_locked(keep_model: Any) -> tuple[list[dict[str, str]], 
         progress = False
         for model, record in extras:
             tag = record["tag"]
+            if tag not in backups:
+                try:
+                    backups[tag] = _backup_model_before_remove(model, record)
+                except Exception:
+                    logging.warning("Keeping loaded model tag=%s label=%s: backup copy failed", tag, record["label"], exc_info=True)
+                    not_backed_up.add(tag)
+                    continue
+            record["backup_path"] = backups[tag]
             try:
                 client.remove(model)
                 progress = True
@@ -204,12 +229,9 @@ def _prune_loaded_models_locked(keep_model: Any) -> tuple[list[dict[str, str]], 
         if not progress:
             break
 
-    kept = []
-    for record in _loaded_model_records_locked():
-        if record["tag"] == keep_tag:
-            kept.append(record)
+    remaining = _loaded_model_records_locked()
     _set_current_model(keep_model, origin="pruned-kept", requested_path=_resolved_model_file_path(keep_model))
-    return removed, kept
+    return removed, remaining
 
 
 def _remove_loaded_models_by_path_locked(path: str, keep_model: Any | None = None) -> list[dict[str, str]]:
@@ -229,14 +251,18 @@ def _remove_loaded_models_by_path_locked(path: str, keep_model: Any | None = Non
             continue
         resolved = _resolved_model_file_path(model)
         if resolved and os.path.normcase(resolved) == normalized_target:
-            removed.append(
-                {
-                    "tag": model_tag,
-                    "label": _safe_model_label(model),
-                    "file_path": resolved,
-                }
-            )
+            record = {
+                "tag": model_tag,
+                "label": _safe_model_label(model),
+                "file_path": resolved,
+            }
+            try:
+                record["backup_path"] = _backup_model_before_remove(model, record)
+            except Exception:
+                logging.warning("Keeping loaded model tag=%s label=%s: backup copy failed", model_tag, record["label"], exc_info=True)
+                continue
             client.remove(model)
+            removed.append(record)
     return removed
 
 
