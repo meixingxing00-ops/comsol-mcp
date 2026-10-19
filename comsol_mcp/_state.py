@@ -294,12 +294,25 @@ def _resolve_path(value: str, *, base: Path = WORKSPACE_ROOT, must_exist: bool =
     return path
 
 
+_LOOPBACK_HOSTS = {"localhost": ("127.0.0.1", "::1"), "127.0.0.1": ("127.0.0.1",), "::1": ("::1",)}
+
+
 def _port_is_open(host: str, port: int, timeout_seconds: float = 1.0) -> bool:
-    try:
-        with socket.create_connection((host, int(port)), timeout=timeout_seconds):
-            return True
-    except OSError:
-        return False
+    # A listening loopback port accepts within milliseconds, while Windows
+    # retries a refused loopback connect for about a second per address.
+    addresses = _LOOPBACK_HOSTS.get(str(host).strip().lower())
+    if addresses:
+        timeout = min(timeout_seconds, 0.25)
+        targets = [(address, timeout) for address in addresses]
+    else:
+        targets = [(host, timeout_seconds)]
+    for address, timeout in targets:
+        try:
+            with socket.create_connection((address, int(port)), timeout=timeout):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def _server_missing_guidance(host: str, port: int) -> dict[str, Any]:

@@ -236,3 +236,23 @@ class TestExpressionItems:
         )
         assert rows[0]["ok"] is True and rows[0]["last_value"] == 2.0
         assert rows[1]["ok"] is False and "undefined" in rows[1]["error"]
+
+
+class TestPortIsOpenLoopback:
+    def test_listening_loopback_port_is_detected(self):
+        import socket
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(("127.0.0.1", 0))
+        server.listen(8)
+        try:
+            port = server.getsockname()[1]
+            assert _port_is_open("localhost", port) is True
+            assert _port_is_open("127.0.0.1", port) is True
+        finally:
+            server.close()
+
+    def test_closed_loopback_port_returns_quickly(self):
+        import time
+        start = time.perf_counter()
+        assert _port_is_open("localhost", 1) is False
+        assert time.perf_counter() - start < 1.0
