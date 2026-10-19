@@ -118,7 +118,7 @@ def _backup_existing_file(path: Path) -> str:
 
 
 def _adopt_model_by_name(model_name: str = "") -> Any | None:
-    if _srv._client is None:
+    if _srv._client is None or not _srv._client_connected:
         return None
     models = list(_srv._client.models())
     if not models:
@@ -134,7 +134,7 @@ def _adopt_model_by_name(model_name: str = "") -> Any | None:
 
 
 def _adopt_model_by_path(path: str) -> Any | None:
-    if _srv._client is None:
+    if _srv._client is None or not _srv._client_connected:
         return None
     target = str(path or "").strip()
     if not target:

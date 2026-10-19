@@ -33,9 +33,12 @@ def _timed_call(func, *args, timeout: float = 30.0, error_msg=""):
 
 
 def _disconnect_locked(*, shutdown_server: bool = False) -> None:
+    # MPh allows a single Client per process (the JVM cannot be restarted), so
+    # the client object is kept and only its server connection is dropped.
     if _srv._client is not None:
         try:
-            _timed_call(_srv._client.disconnect, timeout=15.0)
+            if getattr(_srv._client, "port", None):
+                _timed_call(_srv._client.disconnect, timeout=15.0)
         except Exception as exc:
             if "not connected" not in str(exc).lower():
                 _srv._last_error = f"Disconnect failed: {exc}"
@@ -43,7 +46,6 @@ def _disconnect_locked(*, shutdown_server: bool = False) -> None:
             _srv._client_connected = False
             _srv._connected_host = ""
             _srv._connected_port = None
-            _srv._client = None
 
     _srv._current_model = None
     _srv._current_model_origin = ""

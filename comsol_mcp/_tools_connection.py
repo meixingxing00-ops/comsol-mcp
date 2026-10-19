@@ -216,12 +216,10 @@ def server_connect(host: str = _srv.DEFAULT_HOST, port: int = _srv.DEFAULT_PORT,
                 ),
             )
         except RuntimeError:
-            # Timeout or connection failure — discard the client so next
-            # attempt gets a fresh one rather than reusing a stale socket.
-            _srv._client = None
+            # Timeout: the client object is kept (MPh allows only one per
+            # process); the next server_connect drops a late connection first.
             raise
         except Exception as exc:
-            _srv._client = None
             _mark_awaiting_manual_server(requested_host, requested_port, "server_connect")
             raise _friendly_connection_error(exc, requested_host, requested_port) from exc
         _srv._client_connected = True
