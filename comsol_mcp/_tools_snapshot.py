@@ -18,7 +18,7 @@ from comsol_mcp._connection import _require_client
 from comsol_mcp._model import (
     _require_visible_main, _block_if_visible_main_locked,
     _visible_main_identity, _visible_main_mismatch, _visible_main_lock_enabled,
-    _set_current_model, _save_model_copy, _remove_loaded_models_by_path_locked,
+    _set_current_model, _save_model_copy, _backup_existing_file, _remove_loaded_models_by_path_locked,
     _prune_loaded_models_locked,
 )
 
@@ -148,7 +148,8 @@ def commit_current_main_model(snapshot_label: str = "") -> str:
         _save_model_copy(model, snapshot_path)
         removed_conflicts = _remove_loaded_models_by_path_locked(str(resolved_main), keep_model=model)
         model.java.label(resolved_main_label)
-        model.save()
+        main_backup = _backup_existing_file(Path(resolved_main))
+        model.save(resolved_main)
         removed_after_commit, kept_after_commit = _prune_loaded_models_locked(model)
         _set_current_model(model, origin="workflow-main-committed", requested_path=str(resolved_main))
         identity = _visible_main_identity(model)
@@ -181,6 +182,7 @@ def commit_current_main_model(snapshot_label: str = "") -> str:
             "snapshot_path": str(snapshot_path),
             "current_main_model_path": str(resolved_main),
             "current_main_model_label": resolved_main_label,
+            "backup_of_overwritten_main_model": main_backup,
             "current_main_identity": identity,
             "removed_conflicts": removed_conflicts,
             "remaining_loaded_models": kept_after_commit,
@@ -199,10 +201,11 @@ def save_model(path: str = "") -> str:
         model = _require_visible_main("save_model")
         if str(path or "").strip() and _visible_main_lock_enabled():
             _block_if_visible_main_locked("save_model(path)")
-        target = _save_model_path(model, path)
+        target, backup = _save_model_path(model, path)
         return {
             "label": _safe_model_label(model),
             "saved_path": str(target),
+            "backup_of_overwritten_file": backup,
         }
 
     return _run_tool("save_model", _impl)

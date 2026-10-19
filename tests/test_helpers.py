@@ -202,3 +202,21 @@ class TestWorkflowStateIO:
 
         state = _read_workflow_state()
         assert state["mode"] == "manual"  # falls back to default
+
+
+class TestBackupExistingFile:
+    def test_missing_file_returns_empty(self, tmp_path, monkeypatch):
+        import comsol_mcp._model as model_mod
+        monkeypatch.setattr(model_mod, "OUTPUTS_DIR", tmp_path / "outputs")
+        assert model_mod._backup_existing_file(tmp_path / "absent.mph") == ""
+
+    def test_existing_file_is_copied(self, tmp_path, monkeypatch):
+        import comsol_mcp._model as model_mod
+        monkeypatch.setattr(model_mod, "OUTPUTS_DIR", tmp_path / "outputs")
+        original = tmp_path / "main.mph"
+        original.write_bytes(b"original")
+        backup = Path(model_mod._backup_existing_file(original))
+        assert backup.parent == tmp_path / "outputs" / "backups"
+        assert backup.name.startswith("main_") and backup.suffix == ".mph"
+        assert backup.read_bytes() == b"original"
+        assert original.read_bytes() == b"original"

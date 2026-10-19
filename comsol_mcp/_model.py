@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +103,18 @@ def _block_if_visible_main_locked(tool_name: str) -> None:
 def _save_model_copy(model: Any, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     model.java.save(str(path), True)
+
+
+def _backup_existing_file(path: Path) -> str:
+    """Copy an existing file into OUTPUTS_DIR/backups before it is overwritten."""
+    if not path.is_file():
+        return ""
+    backup_dir = OUTPUTS_DIR / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    backup = backup_dir / f"{path.stem}_{stamp}{path.suffix}"
+    shutil.copy2(path, backup)
+    return str(backup)
 
 
 def _adopt_model_by_name(model_name: str = "") -> Any | None:
@@ -240,7 +254,8 @@ def _require_model() -> Any:
     return _srv._current_model
 
 
-def _save_model_path(model: Any, path: str = "") -> Path:
+def _save_model_path(model: Any, path: str = "") -> tuple[Path, str]:
+    """Save the model and return (target, backup path of the overwritten file or "")."""
     current_path = _safe_model_path(model)
     if path:
         target = _resolve_output_path(path, OUTPUTS_DIR / f"{_safe_model_label(model) or 'model'}.mph")
@@ -249,6 +264,7 @@ def _save_model_path(model: Any, path: str = "") -> Path:
     else:
         stem = _safe_model_label(model) or "server_model"
         target = _resolve_output_path("", OUTPUTS_DIR / f"{stem}.mph")
+    backup = _backup_existing_file(target)
     model.save(target)
     _set_current_model(model, origin=_srv._current_model_origin or "saved", requested_path=str(target))
-    return target
+    return target, backup
