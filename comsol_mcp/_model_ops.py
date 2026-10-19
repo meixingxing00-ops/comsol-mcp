@@ -77,7 +77,7 @@ def _evaluate_named_expressions(
                     model, expression, aggregate, int_domains, int_bounds, time_point, geometry
                 )
                 row["value"] = value
-                row["last_value"] = value
+                row["last_value"] = _last_scalar(value)
                 row["aggregate"] = aggregate
             else:
                 raw = model.evaluate(expression)
@@ -226,7 +226,8 @@ def _evaluate_aggregate(
 
     Selections use `geometry`, or the model's first geometry when it is empty.
     time_point is "last", "first", "all" or a 1-based solution index such as "5";
-    it is ignored for solutions without loop levels (e.g. stationary).
+    it is ignored for solutions without loop levels (e.g. stationary). With "all"
+    and several solutions, the result is a list with one value per solution.
 
     Automatically selects correct COMSOL result feature type based on model dimension:
     - 3D: domains→Volume, boundaries→Surface
@@ -297,12 +298,12 @@ def _evaluate_aggregate(
         feature.run()
         values = feature.getReal()
 
+    # getReal() has one row per expression and one column per solution.
     if aggregate == "avg" and (domains or boundaries):
-        denom = values[1][0]
-        if denom == 0:
-            return float("nan")
-        return float(values[0][0] / denom)
-    return float(values[0][0])
+        series = [float("nan") if den == 0 else float(num / den) for num, den in zip(values[0], values[1])]
+    else:
+        series = [float(v) for v in values[0]]
+    return series[0] if len(series) == 1 else series
 
 
 # ---------------------------------------------------------------------------
