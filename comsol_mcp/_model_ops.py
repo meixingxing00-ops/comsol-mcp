@@ -282,7 +282,10 @@ def _evaluate_aggregate(
         else:
             feature.set("expr", [expression])
 
-        if time_point and time_point != "all":
+        # Solutions without loop levels (e.g. stationary) have an empty
+        # looplevelinput and reject any value for it.
+        has_loop_levels = len(feature.getStringArray("looplevelinput")) > 0
+        if time_point and time_point != "all" and has_loop_levels:
             feature.setIndex("looplevelinput", time_point, 0)
 
         feature.run()
