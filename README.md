@@ -184,7 +184,7 @@ save_model()
 
 visible-main 工作流：
 
-- `configure_single_main_workflow(current_main_model_path, snapshot_dir="", snapshot_prefix="", notes="")`
+- `configure_single_main_workflow(current_main_model_path, snapshot_dir="", snapshot_prefix="", model_dimension=0, notes="", core_metrics_json="")`
 - `start_visible_main_workflow(host="localhost", port=2036, path="")`
 - `start_visible_main_workflow_async(host="localhost", port=2036, path="")`
 - `visible_main_workflow_status(job_id="")`

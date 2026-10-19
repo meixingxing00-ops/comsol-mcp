@@ -49,29 +49,66 @@ def _last_scalar(value: Any) -> Any:
     return current
 
 
-def _evaluate_named_expressions(model: Any, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _evaluate_named_expressions(
+    model: Any, items: list[dict[str, Any]], max_result_size: int = 0
+) -> list[dict[str, Any]]:
+    """Evaluate expression items of the form used by evaluate_expressions."""
     results: list[dict[str, Any]] = []
     for item in items:
         if not isinstance(item, dict):
             raise ValueError("Each expression entry must be an object.")
         name = str(item.get("name", "")).strip()
         expression = str(item.get("expression", "")).strip()
+        aggregate = str(item.get("aggregate", "none")).strip().lower()
+        domains = item.get("domains")
+        boundaries = item.get("boundaries")
+        time_point = str(item.get("time_point", "last")).strip()
         if not name:
             raise ValueError("Expression name is required.")
         if not expression:
             raise ValueError(f'Expression is required for "{name}".')
         row: dict[str, Any] = {"name": name, "expression": expression}
+        int_domains = [int(d) for d in domains] if domains else None
+        int_bounds = [int(b) for b in boundaries] if boundaries else None
         try:
-            raw = model.evaluate(expression)
-            value = _coerce_eval_value(raw)
-            row["value"] = value
-            row["last_value"] = _coerce_eval_value(_last_scalar(value))
+            if aggregate and aggregate != "none":
+                value = _evaluate_aggregate(model, expression, aggregate, int_domains, int_bounds, time_point)
+                row["value"] = value
+                row["last_value"] = value
+                row["aggregate"] = aggregate
+            else:
+                raw = model.evaluate(expression)
+                value = _coerce_eval_value(raw)
+                row["value"] = value
+                row["last_value"] = _coerce_eval_value(_last_scalar(value))
+
+            # Truncation
+            if max_result_size > 0:
+                serialized = json.dumps(row["value"], default=str)
+                if len(serialized) > max_result_size:
+                    row["value"] = serialized[:max_result_size] + "...(truncated)"
+                    row["_truncated"] = True
+                    row["original_size"] = len(serialized)
             row["ok"] = True
         except Exception as exc:
             row["ok"] = False
             row["error"] = str(exc)
         results.append(row)
     return results
+
+
+def _parse_expression_items(raw_json: str, field: str) -> list[dict[str, Any]]:
+    parsed = json.loads(raw_json)
+    if not isinstance(parsed, list):
+        raise ValueError(f"{field} must be a JSON array.")
+    for item in parsed:
+        if not isinstance(item, dict):
+            raise ValueError("Each expression entry must be an object.")
+        if not str(item.get("name", "")).strip():
+            raise ValueError("Expression name is required.")
+        if not str(item.get("expression", "")).strip():
+            raise ValueError(f'Expression is required for "{item.get("name")}".')
+    return parsed
 
 
 @contextmanager
@@ -87,97 +124,6 @@ def _temporary_numerical(model: Any, feature_type: str) -> Iterator[Any]:
             numerical.remove(tag)
         except Exception:
             logging.debug("Failed to remove temporary numerical feature %s", tag, exc_info=True)
-
-
-def _numeric_result(name: str, expression: str, value: Any = None, *, ok: bool = True, error: str = "") -> dict[str, Any]:
-    row: dict[str, Any] = {"name": name, "expression": expression, "ok": ok}
-    if ok:
-        row["value"] = value
-        row["last_value"] = _coerce_eval_value(_last_scalar(value))
-    else:
-        row["error"] = error or "NA"
-    return row
-
-
-# ---------------------------------------------------------------------------
-# Core metrics helpers
-# ---------------------------------------------------------------------------
-def _find_initialized_solution_tag(model: Any) -> str:
-    for tag in list(model.java.sol().tags()):
-        tag_str = str(tag)
-        try:
-            if model.java.sol(tag_str).isInitialized():
-                return tag_str
-        except Exception:
-            continue
-    return ""
-
-
-def _read_last_time_day(model: Any, sol_tag: str) -> float | None:
-    if not sol_tag:
-        return None
-    try:
-        values = model.java.sol(sol_tag).getPVals()
-        if values is not None and len(values) > 0:
-            last_value = float(values[-1])
-            return last_value / 86400.0 if abs(last_value) > 1e3 else last_value
-    except Exception:
-        return None
-    return None
-
-
-def _eval_global_last(model: Any, expression: str) -> float | None:
-    try:
-        with _temporary_numerical(model, "EvalGlobal") as feature:
-            feature.set("expr", [expression])
-            feature.setIndex("looplevelinput", "last", 0)
-            feature.run()
-            return float(feature.getReal()[0][0])
-    except Exception:
-        return None
-
-
-def _eval_domain_average_last(model: Any, expression: str, domains: list[int]) -> float | None:
-    try:
-        with _temporary_numerical(model, "IntSurface") as feature:
-            feature.selection().geom("geom1", 2)
-            feature.selection().set(domains)
-            feature.set("intvolume", True)
-            feature.set("expr", [expression, "1"])
-            feature.setIndex("looplevelinput", "last", 0)
-            feature.run()
-            values = feature.getReal()
-            return float(values[0][0] / values[1][0])
-    except Exception:
-        return None
-
-
-def _eval_boundary_average_last(model: Any, expression: str, boundaries: list[int]) -> float | None:
-    try:
-        with _temporary_numerical(model, "IntLine") as feature:
-            feature.selection().geom("geom1", 1)
-            feature.selection().set(boundaries)
-            feature.set("intsurface", True)
-            feature.set("expr", [expression, "1"])
-            feature.setIndex("looplevelinput", "last", 0)
-            feature.run()
-            values = feature.getReal()
-            return float(values[0][0] / values[1][0])
-    except Exception:
-        return None
-
-
-def _eval_extremum_last(model: Any, feature_type: str, expression: str, domains: list[int]) -> float | None:
-    try:
-        with _temporary_numerical(model, feature_type) as feature:
-            feature.selection().geom("geom1", 2)
-            feature.selection().set(domains)
-            feature.set("expr", [expression])
-            feature.setIndex("looplevelinput", "last", 0)
-            feature.run()
-            return float(feature.getReal()[0][0])
-    except Exception:
-        return None
 
 
 def _get_model_dimension(model: Any) -> int:

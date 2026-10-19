@@ -20,6 +20,7 @@ from comsol_mcp._state import (
     _sanitize_snapshot_label,
 )
 from comsol_mcp._connection import _require_client, _timed_call
+from comsol_mcp._model_ops import _parse_expression_items
 from comsol_mcp._model import (
     _set_current_model, _require_visible_main, _require_model,
     _block_if_visible_main_locked, _adopt_model_by_path,
@@ -44,6 +45,7 @@ def configure_single_main_workflow(
     snapshot_prefix: str = "",
     model_dimension: int = 0,
     notes: str = "",
+    core_metrics_json: str = "",
 ) -> str:
     """Persist the single-current-main-model workflow in MCP state.
 
@@ -51,6 +53,11 @@ def configure_single_main_workflow(
     skip. This is used by create_physics and evaluate_expressions aggregate
     to select the correct COMSOL node types. For 2D models set to 2, for 3D
     set to 3.
+
+    core_metrics_json: JSON array of metrics evaluated by get_core_metrics and
+    run_visible_main_iteration, in the evaluate_expressions item format, e.g.
+    [{"name": "Tmax", "expression": "T", "aggregate": "max", "domains": [1]}].
+    Leave empty to keep the configured metrics.
     """
 
     def _impl() -> dict[str, Any]:
@@ -63,6 +70,9 @@ def configure_single_main_workflow(
             snapshot_root = str(_resolve_output_path(snapshot_dir, current_main.parent))
         prefix = snapshot_prefix.strip() or current_main.stem
         dim = int(model_dimension)
+        update: dict[str, Any] = {}
+        if str(core_metrics_json or "").strip():
+            update["core_metrics"] = _parse_expression_items(core_metrics_json, "core_metrics_json")
         workflow = _write_workflow_state(
             {
                 "mode": "single-current-main-model",
@@ -80,6 +90,7 @@ def configure_single_main_workflow(
                 "workflow_stage": "mcp_connected",
                 "notes": notes.strip()
                 or "Operate on one visible current main model; save copy snapshots without changing the visible model identity.",
+                **update,
             }
         )
         return {"workflow": workflow}

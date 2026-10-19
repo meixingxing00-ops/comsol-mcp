@@ -12,7 +12,7 @@ from comsol_mcp._state import (
     _json, _now_iso, _read_workflow_state, _write_workflow_state,
 )
 from comsol_mcp._model_ops import (
-    _normalize_properties, _coerce_eval_value, _last_scalar, _numeric_result,
+    _normalize_properties, _coerce_eval_value, _last_scalar,
 )
 from comsol_mcp._model import _normcase_path
 
@@ -138,18 +138,6 @@ class TestNormcasePath:
         assert "model.mph" in result.lower()
 
 
-class TestNumericResult:
-    def test_ok(self):
-        result = _numeric_result("wAcc", "wAccAvg", 0.15, ok=True)
-        assert result["ok"] is True
-        assert result["value"] == 0.15
-
-    def test_error(self):
-        result = _numeric_result("wAcc", "wAccAvg", ok=False, error="NA")
-        assert result["ok"] is False
-        assert result["error"] == "NA"
-
-
 class TestJsonHelper:
     def test_basic(self):
         result = _json({"key": "value"})
@@ -220,3 +208,31 @@ class TestBackupExistingFile:
         assert backup.name.startswith("main_") and backup.suffix == ".mph"
         assert backup.read_bytes() == b"original"
         assert original.read_bytes() == b"original"
+
+
+class TestExpressionItems:
+    def test_parse_rejects_non_array(self):
+        from comsol_mcp._model_ops import _parse_expression_items
+        with pytest.raises(ValueError):
+            _parse_expression_items('{"name": "a"}', "core_metrics_json")
+
+    def test_parse_requires_expression(self):
+        from comsol_mcp._model_ops import _parse_expression_items
+        with pytest.raises(ValueError):
+            _parse_expression_items('[{"name": "a"}]', "core_metrics_json")
+
+    def test_evaluate_plain_items(self):
+        from comsol_mcp._model_ops import _evaluate_named_expressions
+
+        class FakeModel:
+            def evaluate(self, expression):
+                if expression == "bad":
+                    raise RuntimeError("undefined variable")
+                return [[1.0, 2.0]]
+
+        rows = _evaluate_named_expressions(
+            FakeModel(),
+            [{"name": "a", "expression": "T"}, {"name": "b", "expression": "bad"}],
+        )
+        assert rows[0]["ok"] is True and rows[0]["last_value"] == 2.0
+        assert rows[1]["ok"] is False and "undefined" in rows[1]["error"]
