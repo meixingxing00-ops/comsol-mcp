@@ -63,6 +63,7 @@ def _evaluate_named_expressions(
         domains = item.get("domains")
         boundaries = item.get("boundaries")
         time_point = str(item.get("time_point", "last")).strip()
+        geometry = str(item.get("geometry", "") or "").strip()
         if not name:
             raise ValueError("Expression name is required.")
         if not expression:
@@ -72,7 +73,9 @@ def _evaluate_named_expressions(
         int_bounds = [int(b) for b in boundaries] if boundaries else None
         try:
             if aggregate and aggregate != "none":
-                value = _evaluate_aggregate(model, expression, aggregate, int_domains, int_bounds, time_point)
+                value = _evaluate_aggregate(
+                    model, expression, aggregate, int_domains, int_bounds, time_point, geometry
+                )
                 row["value"] = value
                 row["last_value"] = value
                 row["aggregate"] = aggregate
@@ -126,13 +129,32 @@ def _temporary_numerical(model: Any, feature_type: str) -> Iterator[Any]:
             logging.debug("Failed to remove temporary numerical feature %s", tag, exc_info=True)
 
 
+def _default_geometry(model: Any) -> tuple[str, int]:
+    """Return (tag, spatial dimension) of the first geometry in the first component that has one."""
+    try:
+        for comp_tag in list(model.java.component().tags()):
+            comp = model.java.component(str(comp_tag))
+            geom_tags = list(comp.geom().tags())
+            if geom_tags:
+                tag = str(geom_tags[0])
+                try:
+                    sdim = int(comp.geom(tag).getSDim())
+                except Exception:
+                    sdim = 0
+                return tag, sdim
+    except Exception:
+        pass
+    return "", 0
+
+
 def _get_model_dimension(model: Any) -> int:
     """Get the configured or auto-detected spatial dimension of the model.
 
     Priority:
     1. Workflow state `model_dimension` (set by configure_single_main_workflow)
-    2. Auto-detect from existing physics interfaces
-    3. Default to 0 (unknown)
+    2. Spatial dimension of the model's first geometry
+    3. Auto-detect from existing physics interfaces
+    4. Default to 0 (unknown)
     """
     # Check workflow state first
     try:
@@ -143,6 +165,10 @@ def _get_model_dimension(model: Any) -> int:
             return dim
     except Exception:
         pass
+
+    _, sdim = _default_geometry(model)
+    if sdim in (1, 2, 3):
+        return sdim
 
     # Auto-detect from existing physics interfaces
     try:
@@ -194,8 +220,11 @@ def _evaluate_aggregate(
     domains: list[int] | None = None,
     boundaries: list[int] | None = None,
     time_point: str = "last",
+    geometry: str = "",
 ) -> Any:
     """Evaluate an expression with aggregation. Returns scalar for aggregated, raw for 'none'.
+
+    Selections use `geometry`, or the model's first geometry when it is empty.
 
     Automatically selects correct COMSOL result feature type based on model dimension:
     - 3D: domains→Volume, boundaries→Surface
@@ -237,13 +266,14 @@ def _evaluate_aggregate(
     else:
         raise ValueError(f'Unknown aggregate "{aggregate}". Use max, min, avg, integral, or none.')
 
+    geom_tag = geometry or _default_geometry(model)[0] or "geom1"
     with _temporary_numerical(model, ftype) as feature:
         # Set selection with correct geometric dimension
         if domains:
-            feature.selection().geom("geom1", dim)
+            feature.selection().geom(geom_tag, dim)
             feature.selection().set(domains)
         elif boundaries:
-            feature.selection().geom("geom1", max(dim - 1, 1))
+            feature.selection().geom(geom_tag, max(dim - 1, 1))
             feature.selection().set(boundaries)
 
         # Set expression(s) based on aggregate type

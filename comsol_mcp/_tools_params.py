@@ -31,7 +31,8 @@ def evaluate_expressions(expressions_json: str = "[]", max_result_size: int = 0)
 
     Each expression item supports: {"name": "...", "expression": "...",
       "aggregate": "max"|"min"|"avg"|"integral"|"none",
-      "domains": [1,2], "boundaries": [5,6], "time_point": "last"|"all"|"N"}.
+      "domains": [1,2], "boundaries": [5,6], "time_point": "last"|"all"|"N",
+      "geometry": "geom1"}. geometry defaults to the model's first geometry.
 
     Backward compatible: [{"name": "...", "expression": "..."}] still works.
     max_result_size: when > 0, truncate arrays exceeding this size (chars).
