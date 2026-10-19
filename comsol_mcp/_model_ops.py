@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+import logging
+from contextlib import contextmanager
+from typing import Any, Iterator
 
 
 # ---------------------------------------------------------------------------
@@ -72,10 +74,19 @@ def _evaluate_named_expressions(model: Any, items: list[dict[str, Any]]) -> list
     return results
 
 
-def _clear_numerical(model: Any) -> None:
+@contextmanager
+def _temporary_numerical(model: Any, feature_type: str) -> Iterator[Any]:
+    """Create a uniquely tagged Derived Values feature and remove only it afterwards."""
     numerical = model.java.result().numerical()
-    for tag in list(numerical.tags()):
-        numerical.remove(str(tag))
+    tag = str(numerical.uniquetag("mcpeval"))
+    numerical.create(tag, feature_type)
+    try:
+        yield model.java.result().numerical(tag)
+    finally:
+        try:
+            numerical.remove(tag)
+        except Exception:
+            logging.debug("Failed to remove temporary numerical feature %s", tag, exc_info=True)
 
 
 def _numeric_result(name: str, expression: str, value: Any = None, *, ok: bool = True, error: str = "") -> dict[str, Any]:
@@ -117,66 +128,54 @@ def _read_last_time_day(model: Any, sol_tag: str) -> float | None:
 
 def _eval_global_last(model: Any, expression: str) -> float | None:
     try:
-        _clear_numerical(model)
-        numerical_list = model.java.result().numerical()
-        numerical_list.create("gev1", "EvalGlobal")
-        feature = model.java.result().numerical("gev1")
-        feature.set("expr", [expression])
-        feature.setIndex("looplevelinput", "last", 0)
-        feature.run()
-        return float(feature.getReal()[0][0])
+        with _temporary_numerical(model, "EvalGlobal") as feature:
+            feature.set("expr", [expression])
+            feature.setIndex("looplevelinput", "last", 0)
+            feature.run()
+            return float(feature.getReal()[0][0])
     except Exception:
         return None
 
 
 def _eval_domain_average_last(model: Any, expression: str, domains: list[int]) -> float | None:
     try:
-        _clear_numerical(model)
-        numerical_list = model.java.result().numerical()
-        numerical_list.create("dom1", "IntSurface")
-        feature = model.java.result().numerical("dom1")
-        feature.selection().geom("geom1", 2)
-        feature.selection().set(domains)
-        feature.set("intvolume", True)
-        feature.set("expr", [expression, "1"])
-        feature.setIndex("looplevelinput", "last", 0)
-        feature.run()
-        values = feature.getReal()
-        return float(values[0][0] / values[1][0])
+        with _temporary_numerical(model, "IntSurface") as feature:
+            feature.selection().geom("geom1", 2)
+            feature.selection().set(domains)
+            feature.set("intvolume", True)
+            feature.set("expr", [expression, "1"])
+            feature.setIndex("looplevelinput", "last", 0)
+            feature.run()
+            values = feature.getReal()
+            return float(values[0][0] / values[1][0])
     except Exception:
         return None
 
 
 def _eval_boundary_average_last(model: Any, expression: str, boundaries: list[int]) -> float | None:
     try:
-        _clear_numerical(model)
-        numerical_list = model.java.result().numerical()
-        numerical_list.create("int1", "IntLine")
-        feature = model.java.result().numerical("int1")
-        feature.selection().geom("geom1", 1)
-        feature.selection().set(boundaries)
-        feature.set("intsurface", True)
-        feature.set("expr", [expression, "1"])
-        feature.setIndex("looplevelinput", "last", 0)
-        feature.run()
-        values = feature.getReal()
-        return float(values[0][0] / values[1][0])
+        with _temporary_numerical(model, "IntLine") as feature:
+            feature.selection().geom("geom1", 1)
+            feature.selection().set(boundaries)
+            feature.set("intsurface", True)
+            feature.set("expr", [expression, "1"])
+            feature.setIndex("looplevelinput", "last", 0)
+            feature.run()
+            values = feature.getReal()
+            return float(values[0][0] / values[1][0])
     except Exception:
         return None
 
 
 def _eval_extremum_last(model: Any, feature_type: str, expression: str, domains: list[int]) -> float | None:
     try:
-        _clear_numerical(model)
-        numerical_list = model.java.result().numerical()
-        numerical_list.create("ext1", feature_type)
-        feature = model.java.result().numerical("ext1")
-        feature.selection().geom("geom1", 2)
-        feature.selection().set(domains)
-        feature.set("expr", [expression])
-        feature.setIndex("looplevelinput", "last", 0)
-        feature.run()
-        return float(feature.getReal()[0][0])
+        with _temporary_numerical(model, feature_type) as feature:
+            feature.selection().geom("geom1", 2)
+            feature.selection().set(domains)
+            feature.set("expr", [expression])
+            feature.setIndex("looplevelinput", "last", 0)
+            feature.run()
+            return float(feature.getReal()[0][0])
     except Exception:
         return None
 
@@ -262,9 +261,6 @@ def _evaluate_aggregate(
         raw = model.evaluate(expression)
         return _coerce_eval_value(raw)
 
-    _clear_numerical(model)
-    numerical_list = model.java.result().numerical()
-
     # Get spatial dimension from workflow config or auto-detect
     dim = _get_model_dimension(model)
     if dim == 0:
@@ -285,47 +281,36 @@ def _evaluate_aggregate(
 
     # Choose correct COMSOL result feature type
     if aggregate == "max":
-        if domains or boundaries:
-            tag, ftype = "agg1", f"Max{dim_suffix}"
-        else:
-            tag, ftype = "agg1", f"Max{dim_suffix}"
+        ftype = f"Max{dim_suffix}"
     elif aggregate == "min":
-        if domains or boundaries:
-            tag, ftype = "agg1", f"Min{dim_suffix}"
-        else:
-            tag, ftype = "agg1", f"Min{dim_suffix}"
+        ftype = f"Min{dim_suffix}"
     elif aggregate == "avg":
-        if domains or boundaries:
-            tag, ftype = "agg1", f"Int{dim_suffix}"
-        else:
-            tag, ftype = "agg1", "EvalGlobal"
+        ftype = f"Int{dim_suffix}" if (domains or boundaries) else "EvalGlobal"
     elif aggregate == "integral":
-        tag, ftype = "agg1", f"Int{dim_suffix}"
+        ftype = f"Int{dim_suffix}"
     else:
         raise ValueError(f'Unknown aggregate "{aggregate}". Use max, min, avg, integral, or none.')
 
-    numerical_list.create(tag, ftype)
-    feature = model.java.result().numerical(tag)
+    with _temporary_numerical(model, ftype) as feature:
+        # Set selection with correct geometric dimension
+        if domains:
+            feature.selection().geom("geom1", dim)
+            feature.selection().set(domains)
+        elif boundaries:
+            feature.selection().geom("geom1", max(dim - 1, 1))
+            feature.selection().set(boundaries)
 
-    # Set selection with correct geometric dimension
-    if domains:
-        feature.selection().geom("geom1", dim)
-        feature.selection().set(domains)
-    elif boundaries:
-        feature.selection().geom("geom1", max(dim - 1, 1))
-        feature.selection().set(boundaries)
+        # Set expression(s) based on aggregate type
+        if aggregate == "avg" and (domains or boundaries):
+            feature.set("expr", [expression, "1"])
+        else:
+            feature.set("expr", [expression])
 
-    # Set expression(s) based on aggregate type
-    if aggregate == "avg" and (domains or boundaries):
-        feature.set("expr", [expression, "1"])
-    else:
-        feature.set("expr", [expression])
+        if time_point and time_point != "all":
+            feature.setIndex("looplevelinput", time_point, 0)
 
-    if time_point and time_point != "all":
-        feature.setIndex("looplevelinput", time_point, 0)
-
-    feature.run()
-    values = feature.getReal()
+        feature.run()
+        values = feature.getReal()
 
     if aggregate == "avg" and (domains or boundaries):
         denom = values[1][0]
