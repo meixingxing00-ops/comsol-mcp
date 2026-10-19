@@ -13,7 +13,7 @@ authors = [
   { name = "mr jiang", email = "jiang-jc24@mails.tsinghua.edu.cn" }
 ]
 dependencies = [
-  "mcp",
+  "mcp>=1.2,<2",
   "MPh",
   "JPype1"
 ]
