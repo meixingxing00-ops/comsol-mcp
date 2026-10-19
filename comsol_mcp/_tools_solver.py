@@ -240,9 +240,9 @@ def run_study_status(job_id: str = "") -> str:
 
 
 def register(mcp_instance) -> None:
-    mcp_instance.add_tool(list_solver_config)
-    mcp_instance.add_tool(create_solver_config)
-    mcp_instance.add_tool(list_solver_features)
-    mcp_instance.add_tool(configure_solver)
-    mcp_instance.add_tool(run_study_async)
-    mcp_instance.add_tool(run_study_status)
+    mcp_instance.add_tool(list_solver_config, structured_output=False)
+    mcp_instance.add_tool(create_solver_config, structured_output=False)
+    mcp_instance.add_tool(list_solver_features, structured_output=False)
+    mcp_instance.add_tool(configure_solver, structured_output=False)
+    mcp_instance.add_tool(run_study_async, structured_output=False)
+    mcp_instance.add_tool(run_study_status, structured_output=False)

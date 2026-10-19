@@ -294,12 +294,12 @@ def manage_variables(
 
 
 def register(mcp_instance) -> None:
-    mcp_instance.add_tool(list_physics)
-    mcp_instance.add_tool(create_physics)
-    mcp_instance.add_tool(remove_physics)
-    mcp_instance.add_tool(list_physics_features)
-    mcp_instance.add_tool(create_physics_feature)
-    mcp_instance.add_tool(update_physics_feature)
-    mcp_instance.add_tool(remove_physics_feature)
-    mcp_instance.add_tool(set_physics_selection)
-    mcp_instance.add_tool(manage_variables)
+    mcp_instance.add_tool(list_physics, structured_output=False)
+    mcp_instance.add_tool(create_physics, structured_output=False)
+    mcp_instance.add_tool(remove_physics, structured_output=False)
+    mcp_instance.add_tool(list_physics_features, structured_output=False)
+    mcp_instance.add_tool(create_physics_feature, structured_output=False)
+    mcp_instance.add_tool(update_physics_feature, structured_output=False)
+    mcp_instance.add_tool(remove_physics_feature, structured_output=False)
+    mcp_instance.add_tool(set_physics_selection, structured_output=False)
+    mcp_instance.add_tool(manage_variables, structured_output=False)

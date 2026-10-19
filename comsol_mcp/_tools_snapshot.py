@@ -212,7 +212,7 @@ def save_model(path: str = "") -> str:
 
 
 def register(mcp_instance) -> None:
-    mcp_instance.add_tool(run_visible_main_iteration)
-    mcp_instance.add_tool(save_main_model_snapshot)
-    mcp_instance.add_tool(commit_current_main_model)
-    mcp_instance.add_tool(save_model)
+    mcp_instance.add_tool(run_visible_main_iteration, structured_output=False)
+    mcp_instance.add_tool(save_main_model_snapshot, structured_output=False)
+    mcp_instance.add_tool(commit_current_main_model, structured_output=False)
+    mcp_instance.add_tool(save_model, structured_output=False)

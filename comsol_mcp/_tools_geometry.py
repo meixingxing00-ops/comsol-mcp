@@ -169,10 +169,10 @@ def run_feature(collection: str, tag: str, component: str = "comp1") -> str:
 
 
 def register(mcp_instance) -> None:
-    mcp_instance.add_tool(ensure_component)
-    mcp_instance.add_tool(ensure_geometry)
-    mcp_instance.add_tool(ensure_mesh)
-    mcp_instance.add_tool(create_feature)
-    mcp_instance.add_tool(update_feature)
-    mcp_instance.add_tool(delete_feature)
-    mcp_instance.add_tool(run_feature)
+    mcp_instance.add_tool(ensure_component, structured_output=False)
+    mcp_instance.add_tool(ensure_geometry, structured_output=False)
+    mcp_instance.add_tool(ensure_mesh, structured_output=False)
+    mcp_instance.add_tool(create_feature, structured_output=False)
+    mcp_instance.add_tool(update_feature, structured_output=False)
+    mcp_instance.add_tool(delete_feature, structured_output=False)
+    mcp_instance.add_tool(run_feature, structured_output=False)

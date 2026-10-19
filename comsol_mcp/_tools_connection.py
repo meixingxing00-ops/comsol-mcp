@@ -278,8 +278,8 @@ def server_disconnect(shutdown_server: bool = False) -> str:
 
 
 def register(mcp_instance) -> None:
-    mcp_instance.add_tool(server_info)
-    mcp_instance.add_tool(check_server_port)
-    mcp_instance.add_tool(server_start)
-    mcp_instance.add_tool(server_connect)
-    mcp_instance.add_tool(server_disconnect)
+    mcp_instance.add_tool(server_info, structured_output=False)
+    mcp_instance.add_tool(check_server_port, structured_output=False)
+    mcp_instance.add_tool(server_start, structured_output=False)
+    mcp_instance.add_tool(server_connect, structured_output=False)
+    mcp_instance.add_tool(server_disconnect, structured_output=False)

@@ -102,7 +102,7 @@ def set_parameters(parameters_json: str) -> str:
 
 
 def register(mcp_instance) -> None:
-    mcp_instance.add_tool(get_parameters)
-    mcp_instance.add_tool(evaluate_expressions)
-    mcp_instance.add_tool(get_core_metrics)
-    mcp_instance.add_tool(set_parameters)
+    mcp_instance.add_tool(get_parameters, structured_output=False)
+    mcp_instance.add_tool(evaluate_expressions, structured_output=False)
+    mcp_instance.add_tool(get_core_metrics, structured_output=False)
+    mcp_instance.add_tool(set_parameters, structured_output=False)

@@ -100,6 +100,6 @@ def prune_loaded_models(keep: str = "current") -> str:
 
 
 def register(mcp_instance) -> None:
-    mcp_instance.add_tool(model_create)
-    mcp_instance.add_tool(model_load)
-    mcp_instance.add_tool(prune_loaded_models)
+    mcp_instance.add_tool(model_create, structured_output=False)
+    mcp_instance.add_tool(model_load, structured_output=False)
+    mcp_instance.add_tool(prune_loaded_models, structured_output=False)
