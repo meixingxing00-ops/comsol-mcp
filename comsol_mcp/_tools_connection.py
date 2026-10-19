@@ -15,7 +15,7 @@ from comsol_mcp._state import (
     _friendly_connection_error,
 )
 from comsol_mcp._connection import (
-    _disconnect_locked, _ensure_client_shell, _timed_call,
+    _disconnect_locked, _ensure_client_shell, _require_no_abandoned_call, _timed_call,
 )
 from comsol_mcp._model import _set_current_model, _adopt_model_by_name
 
@@ -43,6 +43,7 @@ def server_info() -> str:
                     lambda: len(list(_srv._client.models())),
                     timeout=3.0,
                     error_msg="Model enumeration timed out",
+                    track_abandoned=False,
                 )
             except Exception:
                 loaded_model_count = -1
@@ -128,6 +129,7 @@ def server_start(
 
     def _impl() -> dict[str, Any]:
         _require_mph()
+        _require_no_abandoned_call()
         _disconnect_locked(shutdown_server=True)
         effective_version = version.strip() or _srv.DEFAULT_VERSION
         effective_port = int(port)
@@ -176,6 +178,7 @@ def server_connect(host: str = _srv.DEFAULT_HOST, port: int = _srv.DEFAULT_PORT,
 
     def _impl() -> dict[str, Any]:
         _require_mph()
+        _require_no_abandoned_call()
         requested_host = host or _srv.DEFAULT_HOST
         requested_port = int(port)
         effective_timeout = float(timeout_seconds) if float(timeout_seconds) > 0 else 30.0

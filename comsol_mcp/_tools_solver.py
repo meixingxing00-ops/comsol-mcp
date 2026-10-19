@@ -10,7 +10,7 @@ from typing import Any
 
 import comsol_mcp._server as _srv
 from comsol_mcp._state import (
-    _run_tool, _run_tool_readonly, _json, _setup_logging,
+    _run_tool, _run_tool_model_read, _json, _setup_logging,
     _create_background_job, _update_background_job, _read_background_job,
     _append_operation, _safe_model_label,
 )
@@ -46,7 +46,7 @@ def list_solver_config() -> str:
             "count": len(configs),
         }
 
-    return _run_tool_readonly("list_solver_config", _impl)
+    return _run_tool_model_read("list_solver_config", _impl)
 
 
 def create_solver_config(sol_tag: str, study_tag: str) -> str:
@@ -90,7 +90,7 @@ def list_solver_features(sol_tag: str) -> str:
             "count": len(features),
         }
 
-    return _run_tool_readonly("list_solver_features", _impl)
+    return _run_tool_model_read("list_solver_features", _impl)
 
 
 def configure_solver(

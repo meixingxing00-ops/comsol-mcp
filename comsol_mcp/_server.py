@@ -77,6 +77,8 @@ _last_error = ""
 _logger_ready = False
 _background_jobs: dict[str, dict[str, Any]] = {}
 _background_jobs_lock = threading.RLock()
+# (description, future) of COMSOL calls abandoned by _timed_call after a timeout
+_abandoned_calls: list[tuple[str, Any]] = []
 
 # ---------------------------------------------------------------------------
 # FastMCP instance (shared across all tool modules)

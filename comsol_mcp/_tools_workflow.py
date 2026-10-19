@@ -10,7 +10,7 @@ from typing import Any
 
 import comsol_mcp._server as _srv
 from comsol_mcp._state import (
-    _run_tool, _run_tool_readonly, _json, _now_iso, _resolve_path, _resolve_output_path,
+    _run_tool, _run_tool_readonly, _run_tool_model_read, _json, _now_iso, _resolve_path, _resolve_output_path,
     _read_workflow_state, _write_workflow_state,
     _append_operation, _status_payload, _setup_logging,
     _port_is_open, _server_missing_guidance, _mark_awaiting_manual_server,
@@ -243,7 +243,7 @@ def model_tree() -> str:
         from comsol_mcp._model_ops import _model_tree_data
         return _model_tree_data(_require_visible_main("model_tree"))
 
-    return _run_tool_readonly("model_tree", _impl)
+    return _run_tool_model_read("model_tree", _impl)
 
 
 def run_study(study_tag: str = "") -> str:

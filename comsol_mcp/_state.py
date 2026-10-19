@@ -451,6 +451,31 @@ def _run_tool_readonly(tool: str, callback) -> str:
         return _tool_result(tool, False, error=str(exc))
 
 
+def _run_tool_model_read(tool: str, callback) -> str:
+    """Run a read-only tool that reads the model.
+
+    It waits only briefly for _runtime_lock, so it never reads the model while
+    a solve or model load holds the lock, and reports that instead of blocking.
+    """
+    _setup_logging()
+    if not _runtime_lock.acquire(timeout=5.0):
+        err_msg = (
+            f"Tool {tool} cannot read the model while another operation (e.g. run_study_async "
+            "or a model load) is running. Poll run_study_status or visible_main_workflow_status and retry."
+        )
+        logging.warning(err_msg)
+        return _tool_result(tool, False, error=err_msg)
+    try:
+        try:
+            data = callback()
+            return _tool_result(tool, True, data=data)
+        except Exception as exc:
+            logging.exception("Tool %s failed", tool)
+            return _tool_result(tool, False, error=str(exc))
+    finally:
+        _runtime_lock.release()
+
+
 def _run_tool(tool: str, callback) -> str:
     _setup_logging()
     acquired = _runtime_lock.acquire(timeout=120.0)

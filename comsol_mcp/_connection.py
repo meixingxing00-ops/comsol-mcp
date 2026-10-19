@@ -11,25 +11,40 @@ from comsol_mcp._server import _get_mph
 import comsol_mcp._server as _srv
 
 
-def _timed_call(func, *args, timeout: float = 30.0, error_msg=""):
+def _timed_call(func, *args, timeout: float = 30.0, error_msg="", track_abandoned: bool = True):
     """Call a potentially slow function with a hard timeout.
 
     The key difference from ``with ThreadPoolExecutor``: uses
     ``shutdown(wait=False)`` so that a hung Java call never blocks
     the caller.  The worker thread is a daemon and will not prevent
     process exit.
+
+    A timed-out call keeps running in its worker thread. With
+    track_abandoned it is recorded so that _require_client() refuses further
+    COMSOL access until it has finished.
     """
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     try:
         future = executor.submit(func, *args)
         return future.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
-        raise RuntimeError(
-            error_msg
-            or f"Operation timed out after {timeout}s"
-        )
+        message = error_msg or f"Operation timed out after {timeout}s"
+        if track_abandoned:
+            _srv._abandoned_calls.append((message, future))
+        raise RuntimeError(message)
     finally:
         executor.shutdown(wait=False)
+
+
+def _require_no_abandoned_call() -> None:
+    pending = [(message, future) for message, future in _srv._abandoned_calls if not future.done()]
+    _srv._abandoned_calls[:] = pending
+    if pending:
+        raise RuntimeError(
+            "An earlier COMSOL call that timed out is still running in the background "
+            f"({pending[0][0]}). Wait for it to finish, or restart the MCP server, "
+            "before using the COMSOL connection again."
+        )
 
 
 def _disconnect_locked(*, shutdown_server: bool = False) -> None:
@@ -74,6 +89,7 @@ def _ensure_client_shell() -> Any:
 
 
 def _require_client() -> Any:
+    _require_no_abandoned_call()
     if _srv._client is None or not _srv._client_connected:
         raise RuntimeError("Not connected to a COMSOL Multiphysics Server.")
     return _srv._client

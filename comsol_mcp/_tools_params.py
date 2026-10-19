@@ -7,7 +7,7 @@ import json
 from typing import Any
 
 from comsol_mcp._state import (
-    _run_tool, _run_tool_readonly, _read_workflow_state, _safe_model_label,
+    _run_tool, _run_tool_model_read, _read_workflow_state, _safe_model_label,
 )
 from comsol_mcp._model import _require_visible_main
 from comsol_mcp._model_ops import (
@@ -23,7 +23,7 @@ def get_parameters() -> str:
         rows = _parameter_rows(model)
         return {"label": _safe_model_label(model), "parameters": rows, "count": len(rows)}
 
-    return _run_tool_readonly("get_parameters", _impl)
+    return _run_tool_model_read("get_parameters", _impl)
 
 
 def evaluate_expressions(expressions_json: str = "[]", max_result_size: int = 0) -> str:
@@ -48,7 +48,7 @@ def evaluate_expressions(expressions_json: str = "[]", max_result_size: int = 0)
             "count": len(results),
         }
 
-    return _run_tool_readonly("evaluate_expressions", _impl)
+    return _run_tool_model_read("evaluate_expressions", _impl)
 
 
 def get_core_metrics() -> str:
@@ -74,7 +74,7 @@ def get_core_metrics() -> str:
             "results": results,
         }
 
-    return _run_tool_readonly("get_core_metrics", _impl)
+    return _run_tool_model_read("get_core_metrics", _impl)
 
 
 def set_parameters(parameters_json: str) -> str:

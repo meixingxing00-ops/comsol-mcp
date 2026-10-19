@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from comsol_mcp._state import _run_tool, _run_tool_readonly, _safe_model_label
+from comsol_mcp._state import _run_tool, _run_tool_model_read, _safe_model_label
 from comsol_mcp._model import _require_visible_main
 from comsol_mcp._physics_ops import (
     _list_physics, _list_physics_features,
@@ -34,7 +34,7 @@ def list_physics(component: str = "comp1") -> str:
             "count": len(physics_list),
         }
 
-    return _run_tool_readonly("list_physics", _impl)
+    return _run_tool_model_read("list_physics", _impl)
 
 
 def create_physics(component: str, tag: str, physics_type: str, dimension: int = 0, dependent_variables: str = "u") -> str:
@@ -107,7 +107,7 @@ def list_physics_features(component: str, physics_tag: str) -> str:
             "count": len(features),
         }
 
-    return _run_tool_readonly("list_physics_features", _impl)
+    return _run_tool_model_read("list_physics_features", _impl)
 
 
 def create_physics_feature(
