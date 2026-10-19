@@ -225,6 +225,8 @@ def _evaluate_aggregate(
     """Evaluate an expression with aggregation. Returns scalar for aggregated, raw for 'none'.
 
     Selections use `geometry`, or the model's first geometry when it is empty.
+    time_point is "last", "first", "all" or a 1-based solution index such as "5";
+    it is ignored for solutions without loop levels (e.g. stationary).
 
     Automatically selects correct COMSOL result feature type based on model dimension:
     - 3D: domains→Volume, boundaries→Surface
@@ -286,7 +288,11 @@ def _evaluate_aggregate(
         # looplevelinput and reject any value for it.
         has_loop_levels = len(feature.getStringArray("looplevelinput")) > 0
         if time_point and time_point != "all" and has_loop_levels:
-            feature.setIndex("looplevelinput", time_point, 0)
+            if time_point.isdigit():
+                feature.setIndex("looplevelinput", "manualindices", 0)
+                feature.setIndex("looplevelindices", time_point, 0)
+            else:
+                feature.setIndex("looplevelinput", time_point, 0)
 
         feature.run()
         values = feature.getReal()
