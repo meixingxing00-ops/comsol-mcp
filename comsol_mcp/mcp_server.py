@@ -6,7 +6,7 @@ Multiphysics Server process (or connects to an existing one), then drives the
 same server-side model that a COMSOL Desktop client can visualize.
 """
 
-from comsol_mcp._server import mcp, _setup_logging
+from comsol_mcp._server import mcp, _get_mph, _setup_logging
 from comsol_mcp._state import _write_status
 from comsol_mcp._tools_connection import register as _reg_connection
 from comsol_mcp._tools_workflow import register as _reg_workflow
@@ -31,6 +31,10 @@ _reg_solver(mcp)
 def main() -> None:
     _setup_logging()
     _write_status({"status": "ready"})
+    # Import mph (and numpy) before the stdio transport starts: on Windows,
+    # loading numpy's DLLs while the stdin reader thread blocks on the pipe
+    # deadlocks the first tool call.
+    _get_mph()
     mcp.run()
 
 
