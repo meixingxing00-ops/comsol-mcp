@@ -7,6 +7,7 @@ from typing import Any
 
 import comsol_mcp._server as _srv
 from comsol_mcp._state import (
+    _workflow_summary,
     _run_tool, _now_iso, _resolve_path, _read_workflow_state, _write_workflow_state,
     _safe_model_label, _safe_model_path, _safe_model_tag,
 )
@@ -93,7 +94,7 @@ def prune_loaded_models(keep: str = "current") -> str:
             "removed": removed,
             "removed_count": len(removed),
             "remaining_count": len(kept),
-            "workflow": workflow,
+            "workflow": _workflow_summary(workflow),
         }
 
     return _run_tool("prune_loaded_models", _impl)

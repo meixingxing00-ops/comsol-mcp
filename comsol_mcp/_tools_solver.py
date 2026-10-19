@@ -10,7 +10,8 @@ from typing import Any
 
 import comsol_mcp._server as _srv
 from comsol_mcp._state import (
-    _run_tool, _run_tool_model_read, _json, _setup_logging,
+    _response_json,
+    _run_tool, _run_tool_model_read, _setup_logging,
     _create_background_job, _update_background_job, _read_background_job,
     _append_operation, _safe_model_label,
 )
@@ -232,7 +233,7 @@ def run_study_status(job_id: str = "") -> str:
     _setup_logging()
     job = _read_background_job(job_id)
     success = bool(job)
-    return _json({
+    return _response_json({
         "success": success,
         "job": job,
         "message": "" if success else "No background run_study job found.",

@@ -10,9 +10,10 @@ from typing import Any
 
 import comsol_mcp._server as _srv
 from comsol_mcp._state import (
-    _run_tool, _run_tool_readonly, _run_tool_model_read, _json, _now_iso, _resolve_path, _resolve_output_path,
+    _workflow_summary, _tool_result,
+    _run_tool, _run_tool_readonly, _run_tool_model_read, _now_iso, _resolve_path, _resolve_output_path,
     _read_workflow_state, _write_workflow_state,
-    _append_operation, _status_payload, _setup_logging,
+    _append_operation, _setup_logging,
     _port_is_open, _server_missing_guidance, _mark_awaiting_manual_server,
     _safe_model_label, _safe_model_path, _safe_model_tag,
     _resolved_model_file_path, OUTPUTS_DIR, OPERATIONS_FILE, SERVER_LOG,
@@ -156,7 +157,7 @@ def load_visible_main_model(path: str = "") -> str:
             "load_mode": origin,
             "removed_loaded_models": removed,
             "remaining_loaded_models": kept,
-            "workflow": workflow,
+            "workflow": _workflow_summary(workflow),
             "desktop_next_step": "Connect COMSOL Desktop to the same server and import the already loaded server model.",
         }
 
@@ -176,7 +177,7 @@ def verify_visible_main_session() -> str:
             "identity": _visible_main_identity(model),
             "loaded_models": _loaded_model_records_locked(),
             "mismatches": _visible_main_mismatch(model, workflow),
-            "workflow": workflow,
+            "workflow": _workflow_summary(workflow),
         }
 
     return _run_tool("verify_visible_main_session", _impl)
@@ -205,7 +206,7 @@ def unlock_visible_main(reason: str) -> str:
                 "current": _visible_main_identity(_srv._current_model),
             }
         )
-        return {"unlocked": True, "reason": explanation, "workflow": workflow}
+        return {"unlocked": True, "reason": explanation, "workflow": _workflow_summary(workflow)}
 
     return _run_tool("unlock_visible_main", _impl)
 
@@ -281,7 +282,7 @@ def _start_visible_main_workflow_payload(
     requested_port = int(port)
     if not _port_is_open(requested_host, requested_port):
         workflow = _mark_awaiting_manual_server(requested_host, requested_port, action)
-        return {**_server_missing_guidance(requested_host, requested_port), "workflow": workflow}
+        return {**_server_missing_guidance(requested_host, requested_port), "workflow": _workflow_summary(workflow)}
 
     _write_workflow_state(
         {
@@ -339,7 +340,7 @@ def _start_visible_main_workflow_payload(
         "port": requested_port,
         "main_model": load_payload.get("data", {}),
         "verification": verify_payload.get("data", {}),
-        "workflow": workflow,
+        "workflow": _workflow_summary(workflow),
         "next_step_for_user": (
             "Open COMSOL Desktop, connect it to this same server, and import/select "
             "the already loaded main model in the current Desktop window."
@@ -441,7 +442,7 @@ def start_visible_main_workflow_async(
             "job_id": job_id,
             "status": "running",
             "poll_tool": "visible_main_workflow_status",
-            "workflow": _read_workflow_state(),
+            "workflow": _workflow_summary(_read_workflow_state()),
             "message": "Visible-main loading started in the persistent MCP process. Poll visible_main_workflow_status(job_id).",
         }
 
@@ -452,22 +453,11 @@ def visible_main_workflow_status(job_id: str = "") -> str:
     """Return status for the latest or specified asynchronous visible-main workflow job."""
     _setup_logging()
     job = _read_background_job(job_id)
-    success = bool(job)
-    return _json(
-        {
-            "success": success,
-            "tool": "visible_main_workflow_status",
-            "timestamp": __import__("time").time(),
-            "datetime": _now_iso(),
-            "server": _status_payload(),
-            "data": {
-                "job": job,
-                "workflow": _read_workflow_state(),
-            },
-            "error": "" if success else "No visible-main workflow job found.",
-            "log_path": str(SERVER_LOG),
-            "operations_path": str(OPERATIONS_FILE),
-        }
+    return _tool_result(
+        "visible_main_workflow_status",
+        bool(job),
+        data={"job": job, "workflow": _workflow_summary(_read_workflow_state())},
+        error="" if job else "No visible-main workflow job found.",
     )
 
 
@@ -511,7 +501,7 @@ def load_current_main_model() -> str:
         return {
             "label": _safe_model_label(model),
             "file_path": _safe_model_path(model),
-            "workflow": workflow,
+            "workflow": _workflow_summary(workflow),
             "load_mode": origin,
             "removed_loaded_models": removed,
             "remaining_loaded_models": kept,

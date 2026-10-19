@@ -8,6 +8,7 @@ from typing import Any
 
 import comsol_mcp._server as _srv
 from comsol_mcp._state import (
+    _workflow_summary,
     _run_tool, _run_tool_readonly, _json, _now_iso, _require_mph, _port_is_open,
     _server_missing_guidance, _mark_awaiting_manual_server,
     _write_workflow_state, _read_workflow_state, _write_status,
@@ -56,7 +57,7 @@ def server_info() -> str:
             "status_file": str(_srv.STATUS_FILE),
             "recommended_entrypoint": 'server_connect("localhost", <actual_port>)',
             "server_start_role": "advanced/manual-lifecycle",
-            "server_state": _status_payload(),
+            "server_state": {**_status_payload(), "workflow": _workflow_summary(_read_workflow_state())},
             "loaded_model_count": loaded_model_count,
         }
         if mph_ok:
@@ -83,7 +84,7 @@ def check_server_port(host: str = _srv.DEFAULT_HOST, port: int = _srv.DEFAULT_PO
         available = _port_is_open(requested_host, requested_port)
         if not available:
             workflow = _mark_awaiting_manual_server(requested_host, requested_port, "check_server_port")
-            return {**_server_missing_guidance(requested_host, requested_port), "workflow": workflow}
+            return {**_server_missing_guidance(requested_host, requested_port), "workflow": _workflow_summary(workflow)}
         workflow = _write_workflow_state(
             {
                 "last_action": "check_server_port",
@@ -102,7 +103,7 @@ def check_server_port(host: str = _srv.DEFAULT_HOST, port: int = _srv.DEFAULT_PO
                 "Next MCP step: start_visible_main_workflow(host, port, path)."
             ),
             "next_step_for_mcp": "Call start_visible_main_workflow(...) to connect and load the main MPH.",
-            "workflow": workflow,
+            "workflow": _workflow_summary(workflow),
         }
 
     return _run_tool_readonly("check_server_port", _impl)

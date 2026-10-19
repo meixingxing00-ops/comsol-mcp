@@ -9,6 +9,7 @@ from typing import Any
 
 import comsol_mcp._server as _srv
 from comsol_mcp._state import (
+    _workflow_summary,
     _run_tool, _now_iso, _resolve_output_path, OUTPUTS_DIR,
     _read_workflow_state, _write_workflow_state, _append_operation,
     _sanitize_snapshot_label, _workflow_snapshot_path,
@@ -124,7 +125,7 @@ def save_main_model_snapshot(snapshot_label: str) -> str:
             "snapshot_save_mode": "copy",
             "identity_before": before,
             "identity_after": after,
-            "workflow": workflow,
+            "workflow": _workflow_summary(workflow),
         }
 
     return _run_tool("save_main_model_snapshot", _impl)
@@ -186,7 +187,7 @@ def commit_current_main_model(snapshot_label: str = "") -> str:
             "current_main_identity": identity,
             "removed_conflicts": removed_conflicts,
             "remaining_loaded_models": kept_after_commit,
-            "workflow": workflow,
+            "workflow": _workflow_summary(workflow),
         }
 
     return _run_tool("commit_current_main_model", _impl)

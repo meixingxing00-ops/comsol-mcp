@@ -31,6 +31,22 @@ def _json(data: dict[str, Any]) -> str:
     return json.dumps(data, indent=2, ensure_ascii=False, default=str)
 
 
+def _response_json(data: dict[str, Any]) -> str:
+    """Compact JSON for tool responses, which are read by the MCP client."""
+    return json.dumps(data, ensure_ascii=False, default=str, separators=(",", ":"))
+
+
+_WORKFLOW_SUMMARY_KEYS = (
+    "workflow_stage", "visible_main_locked", "guard_level",
+    "current_main_model_path", "main_model_label", "last_action",
+)
+
+
+def _workflow_summary(state: dict[str, Any]) -> dict[str, Any]:
+    """Key workflow fields for tool responses; workflow_info returns the full state."""
+    return {key: state[key] for key in _WORKFLOW_SUMMARY_KEYS if state.get(key) not in (None, "")}
+
+
 def _now_iso() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -411,17 +427,10 @@ def _workflow_snapshot_path(label: str, workflow: dict[str, Any] | None = None) 
 def _tool_result(tool: str, success: bool, data: dict[str, Any] | None = None, error: str = "") -> str:
     _srv._last_command = tool
     _srv._last_error = error
-    payload = {
-        "success": success,
-        "tool": tool,
-        "timestamp": time.time(),
-        "datetime": _now_iso(),
-        "server": _status_payload(),
-        "data": data or {},
-        "error": error,
-        "log_path": str(SERVER_LOG),
-        "operations_path": str(OPERATIONS_FILE),
-    }
+    payload: dict[str, Any] = {"success": success, "tool": tool, "data": data or {}}
+    if error:
+        payload["error"] = error
+        payload["log_path"] = str(SERVER_LOG)
     _append_operation(
         {
             "tool": tool,
@@ -431,7 +440,7 @@ def _tool_result(tool: str, success: bool, data: dict[str, Any] | None = None, e
         }
     )
     _write_status({"last_command": tool, "last_error": error})
-    return _json(payload)
+    return _response_json(payload)
 
 
 def _run_tool_readonly(tool: str, callback) -> str:
