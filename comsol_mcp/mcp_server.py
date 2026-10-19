@@ -28,6 +28,27 @@ _reg_physics(mcp)
 _reg_solver(mcp)
 
 
+def _strip_schema_titles(schema) -> None:
+    """Drop Pydantic's auto-generated "title" entries; they repeat the names."""
+    if isinstance(schema, dict):
+        schema.pop("title", None)
+        for key, value in schema.items():
+            if key == "properties" and isinstance(value, dict):
+                for prop in value.values():
+                    _strip_schema_titles(prop)
+            else:
+                _strip_schema_titles(value)
+    elif isinstance(schema, list):
+        for item in schema:
+            _strip_schema_titles(item)
+
+
+# The advertised input schemas are display-only; arguments are validated
+# against each tool's function signature.
+for _tool in mcp._tool_manager.list_tools():
+    _strip_schema_titles(_tool.parameters)
+
+
 def main() -> None:
     _setup_logging()
     _write_status({"status": "ready"})

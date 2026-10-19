@@ -71,3 +71,14 @@ def test_tool_count():
     from comsol_mcp._server import mcp
 
     assert len(mcp._tool_manager._tools) == len(EXPECTED_TOOLS)
+
+
+def test_input_schemas_have_no_generated_titles():
+    import json
+    import comsol_mcp.mcp_server  # noqa: F401
+    from comsol_mcp._server import mcp
+
+    for tool in mcp._tool_manager.list_tools():
+        dumped = json.dumps(tool.parameters)
+        assert '"title"' not in dumped, tool.name
+        assert tool.parameters.get("type") == "object"
